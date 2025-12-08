@@ -1023,7 +1023,13 @@ After presenting the table, tell user:
       throw new Error('PSI not configured. Please use configure_psi tool first.');
     }
 
-    const url = config.psi?.url || 'https://projectserver.thepsi.com/PWA/_layouts/15/pwa/Timesheet/MyTSSummary.aspx';
+    const baseUrl = config.psi?.url || 'https://projectserver.thepsi.com/PWA/_layouts/15/pwa/Timesheet/MyTSSummary.aspx';
+
+    // Construct URL with embedded credentials: https://username:password@domain.com/path
+    const urlObj = new URL(baseUrl);
+    urlObj.username = psiCreds.username;
+    urlObj.password = psiCreds.password;
+    const url = urlObj.toString();
 
     const { PSITimesheetIntegration } = await import('./integrations/psi.js');
     const psiIntegration = new PSITimesheetIntegration(url, psiCreds.username, psiCreds.password);
@@ -1093,7 +1099,13 @@ Once the user provides a task index, use the submit_to_psi tool with:
       throw new Error('PSI not configured. Please use configure_psi tool first.');
     }
 
-    const url = config.psi?.url || 'https://projectserver.thepsi.com/PWA/_layouts/15/pwa/Timesheet/MyTSSummary.aspx';
+    const baseUrl = config.psi?.url || 'https://projectserver.thepsi.com/PWA/_layouts/15/pwa/Timesheet/MyTSSummary.aspx';
+
+    // Construct URL with embedded credentials: https://username:password@domain.com/path
+    const urlObj = new URL(baseUrl);
+    urlObj.username = psiCreds.username;
+    urlObj.password = psiCreds.password;
+    const url = urlObj.toString();
 
     const { PSITimesheetIntegration } = await import('./integrations/psi.js');
     const psiIntegration = new PSITimesheetIntegration(url, psiCreds.username, psiCreds.password);
@@ -1139,7 +1151,13 @@ Once the user provides a task index, use the submit_to_psi tool with:
       throw new Error('PSI not configured. Please use configure_psi tool first.');
     }
 
-    const url = config.psi?.url || 'https://projectserver.thepsi.com/PWA/_layouts/15/pwa/Timesheet/MyTSSummary.aspx';
+    const baseUrl = config.psi?.url || 'https://projectserver.thepsi.com/PWA/_layouts/15/pwa/Timesheet/MyTSSummary.aspx';
+
+    // Construct URL with embedded credentials: https://username:password@domain.com/path
+    const urlObj = new URL(baseUrl);
+    urlObj.username = psiCreds.username;
+    urlObj.password = psiCreds.password;
+    const url = urlObj.toString();
 
     const { PSITimesheetIntegration } = await import('./integrations/psi.js');
     const psiIntegration = new PSITimesheetIntegration(url, psiCreds.username, psiCreds.password);

@@ -3,7 +3,7 @@ import * as path from 'path';
 import { homedir } from 'os';
 import { GitLabActivity, CalendarEvent } from '../types/index.js';
 
-const CACHE_FILE = path.join(homedir(), '.timesheet-mcp-cache.json');
+const CACHE_FILE = path.join(homedir(), '.timesheet-assistant-mcp-cache.json');
 const DEFAULT_CACHE_TTL = 3600000; // 1 hour in milliseconds
 
 interface CacheEntry<T> {
