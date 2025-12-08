@@ -189,84 +189,7 @@ export class PSITimesheetIntegration {
   private async extractTasksFromDialog(page: Page): Promise<{ success: boolean; message: string; tasks?: any }> {
     const logs: string[] = [];
 
-    // Step 1: Click all checkboxes (not just set checked property)
-    // This triggers SharePoint event handlers that enable the RemoveTask button
-    const checkboxCount = await page.evaluate(() => {
-      const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-      checkboxes.forEach((checkbox) => {
-        if (!(checkbox as HTMLInputElement).checked) {
-          (checkbox as HTMLElement).click();
-        }
-      });
-      return checkboxes.length;
-    });
-    logs.push(`✅ Clicked ${checkboxCount} checkboxes`);
-
-    // Wait a bit for any JavaScript handlers
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Step 2: Click on Options tab using correct ID
-    logs.push('🔍 Looking for Options tab...');
-
-    // The Options tab has id="Ribbon.ContextualTabs.Timesheet.Options-title"
-    const optionsTab = await page.$('li[id*="Options-title"]');
-    if (optionsTab) {
-      logs.push('✅ Found Options tab with id containing "Options-title"');
-      // Click the anchor inside the li
-      const optionsLink = await optionsTab.$('a');
-      if (optionsLink) {
-        await optionsLink.click();
-        logs.push('✅ Clicked Options tab link');
-      } else {
-        logs.push('❌ Could not find anchor inside Options tab');
-      }
-    } else {
-      logs.push('❌ Could not find Options tab with id containing "Options-title"');
-    }
-
-    // Wait for the Options tab to open
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // Step 3: Find and click the RemoveTask anchor element
-    logs.push('🔍 Looking for RemoveTask link...');
-    const allAnchors = await page.$$('a');
-    logs.push(`🔍 Found ${allAnchors.length} anchor elements`);
-
-    let removeTaskFound = false;
-    for (const anchor of allAnchors) {
-      const anchorId = await page.evaluate(el => el.id, anchor);
-      if (anchorId && anchorId.includes('RemoveTask')) {
-        logs.push(`✅ Found RemoveTask link with id: ${anchorId}`);
-        await anchor.click();
-        logs.push('✅ Clicked RemoveTask link');
-        removeTaskFound = true;
-        break;
-      }
-    }
-
-    if (!removeTaskFound) {
-      logs.push('❌ Could not find RemoveTask link');
-    }
-
-    // Wait for the remove action to complete
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // Step 4: Switch back to Timesheet tab
-    logs.push('🔍 Switching back to Timesheet tab...');
-    const timesheetTab = await page.$('li[id*="Home-title"]');
-    if (timesheetTab) {
-      const timesheetLink = await timesheetTab.$('a');
-      if (timesheetLink) {
-        await timesheetLink.click();
-        logs.push('✅ Clicked Timesheet tab');
-      }
-    } else {
-      logs.push('❌ Could not find Timesheet tab');
-    }
-
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // Step 5: Click "Add Row" button
+    // Step 1: Click "Add Row" button
     logs.push('🔍 Looking for Add Row button...');
     const addRowButton = await page.$('a[id*="AddLine-Large"]');
     if (addRowButton) {
@@ -279,7 +202,7 @@ export class PSITimesheetIntegration {
 
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // Step 6: Click "Select From Existing Assignments"
+    // Step 2: Click "Select From Existing Assignments"
     logs.push('🔍 Looking for "Select From Existing Assignments" option...');
     const existingAssignmentsButton = await page.$('a[id*="AddNewLine-Menu16"]');
     if (existingAssignmentsButton) {
@@ -308,7 +231,7 @@ export class PSITimesheetIntegration {
       }
     }
 
-    // Step 7: Extract task list from dialog iframe
+    // Step 3: Extract task list from dialog iframe
     if (dialogFrame) {
       // Wait for tree-results to appear inside the iframe
       let taskListDiv = null;
