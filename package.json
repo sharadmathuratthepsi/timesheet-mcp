@@ -1,0 +1,50 @@
+{
+  "name": "timesheet-assistant-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for generating timesheets and submitting to PSI Project Server",
+  "type": "module",
+  "main": "build/index.js",
+  "bin": {
+    "timesheet-assistant-mcp": "./build/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build",
+    "watch": "tsc --watch"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "timesheet",
+    "psi",
+    "project-server",
+    "sharepoint",
+    "automation",
+    "timesheet-generation"
+  ],
+  "author": "Sharad Mathur <sharad.mathur@thepsi.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sharadmathuratthepsi/timesheet-mcp.git"
+  },
+  "homepage": "https://github.com/sharadmathuratthepsi/timesheet-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/sharadmathuratthepsi/timesheet-mcp/issues"
+  },
+  "dependencies": {
+    "@gitbeaker/rest": "^41.0.1",
+    "@octokit/rest": "^22.0.1",
+    "@azure/msal-node": "^2.15.0",
+    "@microsoft/microsoft-graph-client": "^3.0.7",
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "date-fns": "^4.1.0",
+    "googleapis": "^144.0.0",
+    "keytar": "^7.9.0",
+    "puppeteer": "^23.11.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "typescript": "^5.7.2"
+  }
+}
