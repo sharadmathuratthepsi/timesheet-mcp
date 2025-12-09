@@ -69,9 +69,9 @@ class TimesheetAssistantMCPServer {
       this.config = JSON.parse(data);
       return this.config!;
     } catch (error) {
-      throw new Error(
-        'Configuration file not found. Please create ~/.timesheet-assistant-mcp-config.json with your PSI configuration.'
-      );
+      // Config file doesn't exist yet, that's okay - return empty config
+      this.config = {};
+      return this.config;
     }
   }
 

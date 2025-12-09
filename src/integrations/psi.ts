@@ -189,7 +189,21 @@ export class PSITimesheetIntegration {
   private async extractTasksFromDialog(page: Page): Promise<{ success: boolean; message: string; tasks?: any }> {
     const logs: string[] = [];
 
-    // Step 1: Click "Add Row" button
+    // Step 1: Click Timesheet tab to ensure we're on the right tab
+    logs.push('🔍 Looking for Timesheet tab...');
+    const timesheetTab = await page.$('li[id*="Home-title"]');
+    if (timesheetTab) {
+      const timesheetLink = await timesheetTab.$('a');
+      if (timesheetLink) {
+        await timesheetLink.click();
+        logs.push('✅ Clicked Timesheet tab');
+      }
+    } else {
+      logs.push('⚠️ Could not find Timesheet tab, continuing anyway...');
+    }
+    await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds for tab to load
+
+    // Step 2: Click "Add Row" button
     logs.push('🔍 Looking for Add Row button...');
     const addRowButton = await page.$('a[id*="AddLine-Large"]');
     if (addRowButton) {
@@ -202,7 +216,7 @@ export class PSITimesheetIntegration {
 
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // Step 2: Click "Select From Existing Assignments"
+    // Step 3: Click "Select From Existing Assignments"
     logs.push('🔍 Looking for "Select From Existing Assignments" option...');
     const existingAssignmentsButton = await page.$('a[id*="AddNewLine-Menu16"]');
     if (existingAssignmentsButton) {
@@ -231,7 +245,7 @@ export class PSITimesheetIntegration {
       }
     }
 
-    // Step 3: Extract task list from dialog iframe
+    // Step 4: Extract task list from dialog iframe
     if (dialogFrame) {
       // Wait for tree-results to appear inside the iframe
       let taskListDiv = null;
