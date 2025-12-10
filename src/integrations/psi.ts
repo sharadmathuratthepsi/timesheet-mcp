@@ -69,9 +69,6 @@ export class PSITimesheetIntegration {
       // Get tasks from the dialog
       const taskResult = await this.extractTasksFromDialog(page);
 
-      // Keep browser open for 10 seconds so user can see
-      await new Promise(resolve => setTimeout(resolve, 10000));
-
       return taskResult;
     } catch (error) {
       console.error('Error getting tasks:', error);
@@ -121,9 +118,6 @@ export class PSITimesheetIntegration {
 
       // Fill timesheet with selected task
       const fillResult = await this.fillTimesheetWithTask(page, taskIndex, description, hours);
-
-      // Keep browser open for 10 seconds so user can see
-      await new Promise(resolve => setTimeout(resolve, 10000));
 
       return fillResult;
     } catch (error) {
