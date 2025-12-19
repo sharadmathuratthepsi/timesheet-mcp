@@ -115,8 +115,8 @@ class TimesheetAssistantMCPServer {
           },
         },
         {
-          name: 'submit_to_psi',
-          description: 'Submit timesheet to PSI Project Server with selected task. Use get_psi_tasks first to get available tasks and their indices.',
+          name: 'fill_to_psi',
+          description: 'Fill timesheet in PSI Project Server with selected task (saves but does not submit for approval). Use get_psi_tasks first to get available tasks and their indices. IMPORTANT: After filling all timesheets, you MUST ask the user: "Would you like to submit the filled timesheets for approval now?" If yes, use submit_to_psi for each day.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -141,6 +141,46 @@ class TimesheetAssistantMCPServer {
           },
         },
         {
+          name: 'fill_and_submit_to_psi',
+          description: 'Fill and submit timesheet to PSI Project Server for final approval. This combines filling timesheet and submitting for approval in one step. Use get_psi_tasks first to get available tasks and their indices.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              date: {
+                type: 'string',
+                description: 'Date in YYYY-MM-DD format (e.g., "2025-12-05")',
+              },
+              taskIndex: {
+                type: 'number',
+                description: 'Index of the task from get_psi_tasks result (e.g., 3 for "[3] [ENABLED] Some Task")',
+              },
+              description: {
+                type: 'string',
+                description: 'Work description (max 255 characters)',
+              },
+              hours: {
+                type: 'string',
+                description: 'Optional. Hours worked (e.g., "8h"). Defaults to "8h".',
+              },
+            },
+            required: ['date', 'taskIndex', 'description'],
+          },
+        },
+        {
+          name: 'submit_to_psi',
+          description: 'Submit already-filled timesheet to PSI Project Server for final approval. The tool will automatically read the existing comment from the filled timesheet. Use this after fill_to_psi when you want to submit separately.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              date: {
+                type: 'string',
+                description: 'Date in YYYY-MM-DD format (e.g., "2025-12-05")',
+              },
+            },
+            required: ['date'],
+          },
+        },
+        {
           name: 'inspect_psi_page',
           description: 'Inspect the PSI timesheet page structure to understand form fields and elements. Useful for debugging.',
           inputSchema: {
@@ -157,7 +197,8 @@ class TimesheetAssistantMCPServer {
             '3. Inform user before/after each fetch\n' +
             '4. Build timesheet progressively, showing results after each day\n' +
             '5. Handle days with no activity by distributing work from adjacent days\n' +
-            '6. Summarize each day to 255 characters\n\n' +
+            '6. Summarize each day to 255 characters\n' +
+            '7. After preparing all timesheets, ask user: "Would you like to: 1. Fill and submit to PSI now, or 2. Just fill to PSI (submit later)?" Then use fill_and_submit_to_psi or fill_to_psi accordingly\n\n' +
             'DEPENDENCY: This tool requires the Activity Collector MCP to be available. The LLM MUST verify that fetch_gitlab_activity, fetch_github_activity, and fetch_google_calendar_events tools are available. If NOT available, instruct the user to add the Activity Collector MCP to their configuration.\n\n' +
             'WHEN TO USE: Use this tool when user requests a monthly timesheet (e.g., "timesheet for November", "last month\'s timesheet").\n' +
             'For single day: use generate_daily_timesheet\n' +
@@ -189,7 +230,8 @@ class TimesheetAssistantMCPServer {
             '3. Inform user before/after each fetch with what was found\n' +
             '4. Build timesheet progressively, showing results after each day\n' +
             '5. Handle days with no activity by distributing work from adjacent days\n' +
-            '6. Summarize each day to 255 characters\n\n' +
+            '6. Summarize each day to 255 characters\n' +
+            '7. After preparing all timesheets, ask user: "Would you like to: 1. Fill and submit to PSI now, or 2. Just fill to PSI (submit later)?" Then use fill_and_submit_to_psi or fill_to_psi accordingly\n\n' +
             'DEPENDENCY: This tool requires the Activity Collector MCP to be available. The LLM MUST verify that fetch_gitlab_activity, fetch_github_activity, and fetch_google_calendar_events tools are available. If NOT available, instruct the user to add the Activity Collector MCP to their configuration.\n\n' +
             'WHEN TO USE: Use this tool when user requests a weekly timesheet (e.g., "this week\'s timesheet", "last week").\n' +
             'For single day: use generate_daily_timesheet\n' +
@@ -220,7 +262,8 @@ class TimesheetAssistantMCPServer {
             '2. Fetch data for the day using fetch_gitlab_activity, fetch_github_activity, and fetch_google_calendar_events tools\n' +
             '3. Inform user before/after each fetch\n' +
             '4. Build and present the timesheet\n' +
-            '5. Summarize to 255 characters\n\n' +
+            '5. Summarize to 255 characters\n' +
+            '6. After preparing the timesheet, ask user: "Would you like to: 1. Fill and submit to PSI now, or 2. Just fill to PSI (submit later)?" Then use fill_and_submit_to_psi or fill_to_psi accordingly\n\n' +
             'DEPENDENCY: This tool requires the Activity Collector MCP to be available. The LLM MUST verify that fetch_gitlab_activity, fetch_github_activity, and fetch_google_calendar_events tools are available. If NOT available, instruct the user to add the Activity Collector MCP to their configuration.\n\n' +
             'WHEN TO USE: Use this tool when user requests a single day timesheet (e.g., "today\'s timesheet", "yesterday", "timesheet for Dec 1").\n' +
             'For multiple days: use generate_date_range_timesheet\n' +
@@ -252,7 +295,8 @@ class TimesheetAssistantMCPServer {
             '3. Inform user before/after each fetch with specific counts (commits, MRs, events)\n' +
             '4. Build timesheet progressively, showing results after each day\n' +
             '5. Handle days with no activity by distributing work from adjacent days\n' +
-            '6. Summarize each day to 255 characters\n\n' +
+            '6. Summarize each day to 255 characters\n' +
+            '7. After preparing all timesheets, ask user: "Would you like to: 1. Fill and submit to PSI now, or 2. Just fill to PSI (submit later)?" Then use fill_and_submit_to_psi or fill_to_psi accordingly\n\n' +
             'DEPENDENCY: This tool requires the Activity Collector MCP to be available. The LLM MUST verify that fetch_gitlab_activity, fetch_github_activity, and fetch_google_calendar_events tools are available. If NOT available, instruct the user to add the Activity Collector MCP to their configuration.\n\n' +
             'WHEN TO USE: Use this tool when user requests a custom date range (e.g., "last 3 days", "Dec 1-5", "timesheet from Nov 25 to Dec 2").\n' +
             'For single day: use generate_daily_timesheet\n' +
@@ -294,6 +338,12 @@ class TimesheetAssistantMCPServer {
 
           case 'get_psi_tasks':
             return await this.handleGetPSITasks(request.params.arguments);
+
+          case 'fill_to_psi':
+            return await this.handleFillToPSI(request.params.arguments);
+
+          case 'fill_and_submit_to_psi':
+            return await this.handleFillAndSubmitToPSI(request.params.arguments);
 
           case 'submit_to_psi':
             return await this.handleSubmitToPSI(request.params.arguments);
@@ -1090,6 +1140,110 @@ Once the user provides a task index, use the submit_to_psi tool with:
     }
   }
 
+  private async handleFillToPSI(args: any) {
+    await this.tokenStorage.load();
+    const config = await this.loadConfig();
+
+    const psiCreds = this.tokenStorage.getPSICredentials();
+    if (!psiCreds) {
+      throw new Error('PSI not configured. Please use configure_psi tool first.');
+    }
+
+    const baseUrl = config.psi?.url || 'https://projectserver.thepsi.com/PWA/_layouts/15/pwa/Timesheet/MyTSSummary.aspx';
+
+    // Construct URL with embedded credentials: https://username:password@domain.com/path
+    const urlObj = new URL(baseUrl);
+    urlObj.username = psiCreds.username;
+    urlObj.password = psiCreds.password;
+    const url = urlObj.toString();
+
+    const { PSITimesheetIntegration } = await import('./integrations/psi.js');
+    const psiIntegration = new PSITimesheetIntegration(url, psiCreds.username, psiCreds.password);
+
+    try {
+      const result = await psiIntegration.fillTimesheet(
+        args.date,
+        args.taskIndex,
+        args.description,
+        args.hours || '8h'
+      );
+
+      if (result.success) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: result.message,
+            },
+          ],
+        };
+      } else {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Fill failed: ${result.message}`,
+            },
+          ],
+        };
+      }
+    } finally {
+      await psiIntegration.close();
+    }
+  }
+
+  private async handleFillAndSubmitToPSI(args: any) {
+    await this.tokenStorage.load();
+    const config = await this.loadConfig();
+
+    const psiCreds = this.tokenStorage.getPSICredentials();
+    if (!psiCreds) {
+      throw new Error('PSI not configured. Please use configure_psi tool first.');
+    }
+
+    const baseUrl = config.psi?.url || 'https://projectserver.thepsi.com/PWA/_layouts/15/pwa/Timesheet/MyTSSummary.aspx';
+
+    // Construct URL with embedded credentials: https://username:password@domain.com/path
+    const urlObj = new URL(baseUrl);
+    urlObj.username = psiCreds.username;
+    urlObj.password = psiCreds.password;
+    const url = urlObj.toString();
+
+    const { PSITimesheetIntegration } = await import('./integrations/psi.js');
+    const psiIntegration = new PSITimesheetIntegration(url, psiCreds.username, psiCreds.password);
+
+    try {
+      const result = await psiIntegration.fillAndSubmitTimesheet(
+        args.date,
+        args.taskIndex,
+        args.description,
+        args.hours || '8h'
+      );
+
+      if (result.success) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: result.message,
+            },
+          ],
+        };
+      } else {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Fill and submit failed: ${result.message}`,
+            },
+          ],
+        };
+      }
+    } finally {
+      await psiIntegration.close();
+    }
+  }
+
   private async handleSubmitToPSI(args: any) {
     await this.tokenStorage.load();
     const config = await this.loadConfig();
@@ -1111,12 +1265,7 @@ Once the user provides a task index, use the submit_to_psi tool with:
     const psiIntegration = new PSITimesheetIntegration(url, psiCreds.username, psiCreds.password);
 
     try {
-      const result = await psiIntegration.submitTimesheet(
-        args.date,
-        args.taskIndex,
-        args.description,
-        args.hours || '8h'
-      );
+      const result = await psiIntegration.submitTimesheetForApproval(args.date);
 
       if (result.success) {
         return {

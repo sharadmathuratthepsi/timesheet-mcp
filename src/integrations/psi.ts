@@ -82,13 +82,13 @@ export class PSITimesheetIntegration {
   }
 
   /**
-   * Submit timesheet with selected task
+   * Fill timesheet with selected task (saves but does not submit for approval)
    * @param date - Date in YYYY-MM-DD format
    * @param taskIndex - Index of task from getTasks() result
    * @param description - Timesheet description (max 255 chars)
    * @param hours - Hours worked (e.g., "8h")
    */
-  async submitTimesheet(date: string, taskIndex: number, description: string, hours: string = '8h'): Promise<{ success: boolean; message: string }> {
+  async fillTimesheet(date: string, taskIndex: number, description: string, hours: string = '8h'): Promise<{ success: boolean; message: string }> {
     if (!this.browser) {
       await this.initialize();
     }
@@ -121,10 +121,124 @@ export class PSITimesheetIntegration {
 
       return fillResult;
     } catch (error) {
-      console.error('Error submitting timesheet:', error);
+      console.error('Error filling timesheet:', error);
       return {
         success: false,
-        message: `Failed to submit timesheet: ${error instanceof Error ? error.message : String(error)}`
+        message: `Failed to fill timesheet: ${error instanceof Error ? error.message : String(error)}`
+      };
+    } finally {
+      await page.close();
+    }
+  }
+
+  /**
+   * Fill and submit timesheet for final approval in one step
+   * @param date - Date in YYYY-MM-DD format
+   * @param taskIndex - Index of task from getTasks() result
+   * @param description - Timesheet description (max 255 chars)
+   * @param hours - Hours worked (e.g., "8h")
+   */
+  async fillAndSubmitTimesheet(date: string, taskIndex: number, description: string, hours: string = '8h'): Promise<{ success: boolean; message: string }> {
+    if (!this.browser) {
+      await this.initialize();
+    }
+
+    const page = await this.browser!.newPage();
+
+    // Set a larger viewport to see the complete webpage
+    await page.setViewport({ width: 1920, height: 1080 });
+
+    try {
+      // Authenticate and land on the summary page
+      await this.authenticate(page);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Find and click the correct timesheet row for this date
+      const clicked = await this.findAndClickTimesheetRow(page, date);
+      if (!clicked) {
+        return {
+          success: false,
+          message: `❌ Could not find timesheet period for date: ${date}`
+        };
+      }
+
+      // Wait for navigation to the detail page
+      await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10000 }).catch(() => {});
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // Fill timesheet with selected task
+      const fillResult = await this.fillTimesheetWithTask(page, taskIndex, description, hours);
+
+      if (!fillResult.success) {
+        return fillResult;
+      }
+
+      // Now submit for approval
+      const submitResult = await this.submitForApproval(page, description);
+
+      return submitResult;
+    } catch (error) {
+      console.error('Error filling and submitting timesheet:', error);
+      return {
+        success: false,
+        message: `Failed to fill and submit timesheet: ${error instanceof Error ? error.message : String(error)}`
+      };
+    } finally {
+      await page.close();
+    }
+  }
+
+  /**
+   * Submit already-filled timesheet for final approval
+   * @param date - Date in YYYY-MM-DD format
+   * @param description - Submission comment (max 255 chars)
+   */
+  async submitTimesheetForApproval(date: string): Promise<{ success: boolean; message: string }> {
+    if (!this.browser) {
+      await this.initialize();
+    }
+
+    const page = await this.browser!.newPage();
+
+    // Set a larger viewport to see the complete webpage
+    await page.setViewport({ width: 1920, height: 1080 });
+
+    try {
+      // Authenticate and land on the summary page
+      await this.authenticate(page);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Find and click the correct timesheet row for this date
+      const clicked = await this.findAndClickTimesheetRow(page, date);
+      if (!clicked) {
+        return {
+          success: false,
+          message: `❌ Could not find timesheet period for date: ${date}`
+        };
+      }
+
+      // Wait for navigation to the detail page
+      await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10000 }).catch(() => {});
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // Always read the comment from the existing timesheet
+      const existingComment = await this.readTimesheetComment(page);
+      if (!existingComment) {
+        return {
+          success: false,
+          message: '❌ Could not read the comment/description from the timesheet. Please ensure the timesheet is filled with a description.'
+        };
+      }
+
+      // Submit for approval
+      const submitResult = await this.submitForApproval(page, existingComment);
+
+      return submitResult;
+    } catch (error) {
+      console.error('Error submitting timesheet for approval:', error);
+      return {
+        success: false,
+        message: `Failed to submit timesheet for approval: ${error instanceof Error ? error.message : String(error)}`
       };
     } finally {
       await page.close();
@@ -751,7 +865,171 @@ export class PSITimesheetIntegration {
     // Wait for save to complete
     await new Promise(resolve => setTimeout(resolve, 3000));
 
-    return { success: true, message: `${logs.join('\n')}\n\n✅ Timesheet submitted successfully!` };
+    return { success: true, message: `${logs.join('\n')}\n\n✅ Timesheet filled successfully!` };
+  }
+
+  private async readTimesheetComment(page: Page): Promise<string | null> {
+    try {
+      // Path: table > tbody > 2nd tr > 5th td > 1st span
+      // This gives us the comment text directly from the span
+
+      // Find the table containing the timesheet data
+      const table = await page.$('table[id*="TimesheetPartJSGridControl"]');
+      if (!table) {
+        console.log('Timesheet table not found');
+        return null;
+      }
+
+      // Get tbody
+      const tbody = await table.$('tbody');
+      if (!tbody) {
+        console.log('Table tbody not found');
+        return null;
+      }
+
+      // Get all rows
+      const rows = await tbody.$$('tr[role="row"]');
+      if (rows.length < 2) {
+        console.log('Not enough rows in table');
+        return null;
+      }
+
+      // Get the 2nd row (index 1) - first data row
+      const dataRow = rows[1];
+
+      // Get all cells
+      const cells = await dataRow.$$('td');
+      if (cells.length < 5) {
+        console.log('Not enough cells in row');
+        return null;
+      }
+
+      // Get the 5th cell (index 4) - comment column
+      const commentCell = cells[4];
+
+      // Get the first span in this cell
+      const span = await commentCell.$('span.jsgrid-control-text');
+      if (!span) {
+        console.log('Comment span not found');
+        return null;
+      }
+
+      // Read the text content from the span
+      const commentText = await page.evaluate((el: any) => el.textContent?.trim(), span);
+      if (commentText && commentText.length > 0) {
+        console.log(`Successfully read comment from span: ${commentText}`);
+        return commentText;
+      }
+
+      console.log('Comment span is empty');
+      return null;
+    } catch (error) {
+      console.error('Error reading timesheet comment:', error);
+      return null;
+    }
+  }
+
+  private async submitForApproval(page: Page, description: string): Promise<{ success: boolean; message: string }> {
+    const logs: string[] = [];
+
+    try {
+      // Step 1: Click Timesheet tab to ensure we're on the right tab
+      logs.push('🔍 Looking for Timesheet tab...');
+      const timesheetTab = await page.$('li[id*="Home-title"]');
+      if (timesheetTab) {
+        const timesheetLink = await timesheetTab.$('a');
+        if (timesheetLink) {
+          await timesheetLink.click();
+          logs.push('✅ Clicked Timesheet tab');
+        }
+      } else {
+        logs.push('⚠️ Could not find Timesheet tab, continuing anyway...');
+      }
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Step 2: Click Send button to open the menu
+      logs.push('🔍 Looking for Send button...');
+      const sendButton = await page.$('a[id*="Ribbon.ContextualTabs.Timesheet.Home.Sheet.SubmitMenu-Large"]');
+      if (sendButton) {
+        await sendButton.click();
+        logs.push('✅ Clicked Send button');
+      } else {
+        return { success: false, message: `${logs.join('\n')}\n❌ Could not find Send button` };
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Step 3: Click "Turn in final timesheet" from the menu
+      logs.push('🔍 Looking for "Turn in final timesheet" option...');
+      const submitOption = await page.$('a[id*="Ribbon.ContextualTabs.Timesheet.Home.Sheet.SubmitTimesheet-Menu32"]');
+      if (submitOption) {
+        await submitOption.click();
+        logs.push('✅ Clicked "Turn in final timesheet"');
+      } else {
+        return { success: false, message: `${logs.join('\n')}\n❌ Could not find "Turn in final timesheet" option` };
+      }
+
+      // Step 4: Wait for dialog iframe to open
+      logs.push('⏳ Waiting for submission dialog iframe...');
+      let dialogFrame = null;
+      for (let i = 0; i < 10; i++) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const frames = page.frames();
+        dialogFrame = frames.find(frame => frame.url().includes('SubmitTimesheet.aspx') || frame.url().includes('Submit'));
+        if (dialogFrame) {
+          logs.push(`✅ Found dialog iframe after ${i + 1} seconds`);
+          break;
+        }
+      }
+
+      // If no iframe found, try the main page
+      if (!dialogFrame) {
+        logs.push('⚠️ No iframe found, trying main page...');
+        dialogFrame = page.mainFrame();
+      }
+
+      // Step 5: Find comment field in the dialog
+      logs.push('🔍 Looking for comment field...');
+      let commentField = null;
+      for (let i = 0; i < 5; i++) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        commentField = await dialogFrame.$('textarea[id*="idComment"]');
+        if (commentField) {
+          logs.push(`✅ Found comment field after ${i + 1} seconds`);
+          break;
+        }
+      }
+
+      if (!commentField) {
+        return { success: false, message: `${logs.join('\n')}\n❌ Could not find comment field` };
+      }
+
+      // Step 6: Fill comment text area
+      logs.push('🔍 Filling comment field...');
+      await commentField.click({ clickCount: 3 }); // Select all
+      await commentField.type(description);
+      logs.push(`✅ Filled comment: ${description}`);
+
+      // Step 7: Click OK button
+      logs.push('🔍 Looking for OK button...');
+      const okButton = await dialogFrame.$('input[id*="idOkButton"]');
+      if (okButton) {
+        await okButton.click();
+        logs.push('✅ Clicked OK button');
+      } else {
+        return { success: false, message: `${logs.join('\n')}\n❌ Could not find OK button` };
+      }
+
+      // Wait for submission to complete
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      return { success: true, message: `${logs.join('\n')}\n\n✅ Timesheet submitted for approval successfully!` };
+    } catch (error) {
+      return {
+        success: false,
+        message: `${logs.join('\n')}\n❌ Error during submission: ${error instanceof Error ? error.message : String(error)}`
+      };
+    }
   }
 
   async close(): Promise<void> {
