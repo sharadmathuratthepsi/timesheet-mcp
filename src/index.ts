@@ -193,13 +193,15 @@ class TimesheetAssistantMCPServer {
           description:
             'ORCHESTRATION TOOL: Returns a detailed guide for building monthly timesheets day-by-day. This tool DOES NOT fetch data - it provides instructions for the LLM to:\n' +
             '1. Create a TODO list for all working days\n' +
-            '2. Fetch data for each day using fetch_gitlab_activity, fetch_github_activity, and fetch_google_calendar_events tools\n' +
+            '2. Fetch data for each day using the available source tools: fetch_gitlab_activity, fetch_google_calendar_events, fetch_outlook_calendar_events, fetch_azure_devops_activity, plus Jira via the Atlassian MCP\n' +
             '3. Inform user before/after each fetch\n' +
             '4. Build timesheet progressively, showing results after each day\n' +
             '5. Handle days with no activity by distributing work from adjacent days\n' +
             '6. Summarize each day to 255 characters\n' +
             '7. After preparing all timesheets, ask user: "Would you like to: 1. Fill and submit to PSI now, or 2. Just fill to PSI (submit later)?" Then use fill_and_submit_to_psi or fill_to_psi accordingly\n\n' +
-            'DEPENDENCY: This tool requires the Activity Collector MCP to be available. The LLM MUST verify that fetch_gitlab_activity, fetch_github_activity, and fetch_google_calendar_events tools are available. If NOT available, instruct the user to add the Activity Collector MCP to their configuration.\n\n' +
+            'DEPENDENCY: This tool requires the Activity Collector MCP to be available. The LLM MUST verify which of these tools are available: fetch_gitlab_activity, fetch_google_calendar_events, fetch_outlook_calendar_events, fetch_azure_devops_activity. If NONE are available, instruct the user to add the Activity Collector MCP to their configuration. Use check_authentication_status to see which sources are configured.\n\n' +
+            'JIRA: Jira activity does NOT come from the Activity Collector MCP. It comes from the Atlassian MCP, which the LLM calls directly. If Atlassian/Jira tools (e.g. searchJiraIssuesUsingJql, getJiraIssue) are available, use them to find issues touched in the period with JQL such as: project = <KEY> AND updated >= "YYYY-MM-DD" AND updated <= "YYYY-MM-DD" AND assignee = currentUser() ORDER BY updated DESC. If those tools are NOT available, tell the user they can add Jira support by installing the Atlassian MCP (claude mcp add --transport sse atlassian https://mcp.atlassian.com/v1/sse) and continue without Jira data.\n\n' +
+            'JIRA RESPONSE SIZE - IMPORTANT: Jira search responses are very large (roughly 10-15KB per issue) and can exceed the tool output limit, which loses the whole result. To avoid this: (a) always pass a minimal fields list such as ["summary","status","updated"]; (b) always constrain the JQL by project AND assignee = currentUser(); (c) prefer ONE query covering the whole date range over per-day queries, then map issues to dates using each issue\'s updated field; (d) if the response is still truncated to a file, do not re-run the query - extract just the key, summary, status and updated fields from the saved file instead.\n\n' +
             'WHEN TO USE: Use this tool when user requests a monthly timesheet (e.g., "timesheet for November", "last month\'s timesheet").\n' +
             'For single day: use generate_daily_timesheet\n' +
             'For specific week: use generate_weekly_timesheet\n' +
@@ -226,13 +228,15 @@ class TimesheetAssistantMCPServer {
           description:
             'ORCHESTRATION TOOL: Returns a detailed guide for building weekly timesheets day-by-day. This tool DOES NOT fetch data - it provides instructions for the LLM to:\n' +
             '1. Create a TODO list for all working days in the week\n' +
-            '2. Fetch data for each day using fetch_gitlab_activity, fetch_github_activity, and fetch_google_calendar_events tools\n' +
+            '2. Fetch data for each day using the available source tools: fetch_gitlab_activity, fetch_google_calendar_events, fetch_outlook_calendar_events, fetch_azure_devops_activity, plus Jira via the Atlassian MCP\n' +
             '3. Inform user before/after each fetch with what was found\n' +
             '4. Build timesheet progressively, showing results after each day\n' +
             '5. Handle days with no activity by distributing work from adjacent days\n' +
             '6. Summarize each day to 255 characters\n' +
             '7. After preparing all timesheets, ask user: "Would you like to: 1. Fill and submit to PSI now, or 2. Just fill to PSI (submit later)?" Then use fill_and_submit_to_psi or fill_to_psi accordingly\n\n' +
-            'DEPENDENCY: This tool requires the Activity Collector MCP to be available. The LLM MUST verify that fetch_gitlab_activity, fetch_github_activity, and fetch_google_calendar_events tools are available. If NOT available, instruct the user to add the Activity Collector MCP to their configuration.\n\n' +
+            'DEPENDENCY: This tool requires the Activity Collector MCP to be available. The LLM MUST verify which of these tools are available: fetch_gitlab_activity, fetch_google_calendar_events, fetch_outlook_calendar_events, fetch_azure_devops_activity. If NONE are available, instruct the user to add the Activity Collector MCP to their configuration. Use check_authentication_status to see which sources are configured.\n\n' +
+            'JIRA: Jira activity does NOT come from the Activity Collector MCP. It comes from the Atlassian MCP, which the LLM calls directly. If Atlassian/Jira tools (e.g. searchJiraIssuesUsingJql, getJiraIssue) are available, use them to find issues touched in the period with JQL such as: project = <KEY> AND updated >= "YYYY-MM-DD" AND updated <= "YYYY-MM-DD" AND assignee = currentUser() ORDER BY updated DESC. If those tools are NOT available, tell the user they can add Jira support by installing the Atlassian MCP (claude mcp add --transport sse atlassian https://mcp.atlassian.com/v1/sse) and continue without Jira data.\n\n' +
+            'JIRA RESPONSE SIZE - IMPORTANT: Jira search responses are very large (roughly 10-15KB per issue) and can exceed the tool output limit, which loses the whole result. To avoid this: (a) always pass a minimal fields list such as ["summary","status","updated"]; (b) always constrain the JQL by project AND assignee = currentUser(); (c) prefer ONE query covering the whole date range over per-day queries, then map issues to dates using each issue\'s updated field; (d) if the response is still truncated to a file, do not re-run the query - extract just the key, summary, status and updated fields from the saved file instead.\n\n' +
             'WHEN TO USE: Use this tool when user requests a weekly timesheet (e.g., "this week\'s timesheet", "last week").\n' +
             'For single day: use generate_daily_timesheet\n' +
             'For full month: use generate_timesheet\n' +
@@ -259,12 +263,14 @@ class TimesheetAssistantMCPServer {
           description:
             'ORCHESTRATION TOOL: Returns a detailed guide for building a single day timesheet. This tool DOES NOT fetch data - it provides instructions for the LLM to:\n' +
             '1. Check authentication status\n' +
-            '2. Fetch data for the day using fetch_gitlab_activity, fetch_github_activity, and fetch_google_calendar_events tools\n' +
+            '2. Fetch data for the day using the available source tools: fetch_gitlab_activity, fetch_google_calendar_events, fetch_outlook_calendar_events, fetch_azure_devops_activity, plus Jira via the Atlassian MCP\n' +
             '3. Inform user before/after each fetch\n' +
             '4. Build and present the timesheet\n' +
             '5. Summarize to 255 characters\n' +
             '6. After preparing the timesheet, ask user: "Would you like to: 1. Fill and submit to PSI now, or 2. Just fill to PSI (submit later)?" Then use fill_and_submit_to_psi or fill_to_psi accordingly\n\n' +
-            'DEPENDENCY: This tool requires the Activity Collector MCP to be available. The LLM MUST verify that fetch_gitlab_activity, fetch_github_activity, and fetch_google_calendar_events tools are available. If NOT available, instruct the user to add the Activity Collector MCP to their configuration.\n\n' +
+            'DEPENDENCY: This tool requires the Activity Collector MCP to be available. The LLM MUST verify which of these tools are available: fetch_gitlab_activity, fetch_google_calendar_events, fetch_outlook_calendar_events, fetch_azure_devops_activity. If NONE are available, instruct the user to add the Activity Collector MCP to their configuration. Use check_authentication_status to see which sources are configured.\n\n' +
+            'JIRA: Jira activity does NOT come from the Activity Collector MCP. It comes from the Atlassian MCP, which the LLM calls directly. If Atlassian/Jira tools (e.g. searchJiraIssuesUsingJql, getJiraIssue) are available, use them to find issues touched in the period with JQL such as: project = <KEY> AND updated >= "YYYY-MM-DD" AND updated <= "YYYY-MM-DD" AND assignee = currentUser() ORDER BY updated DESC. If those tools are NOT available, tell the user they can add Jira support by installing the Atlassian MCP (claude mcp add --transport sse atlassian https://mcp.atlassian.com/v1/sse) and continue without Jira data.\n\n' +
+            'JIRA RESPONSE SIZE - IMPORTANT: Jira search responses are very large (roughly 10-15KB per issue) and can exceed the tool output limit, which loses the whole result. To avoid this: (a) always pass a minimal fields list such as ["summary","status","updated"]; (b) always constrain the JQL by project AND assignee = currentUser(); (c) prefer ONE query covering the whole date range over per-day queries, then map issues to dates using each issue\'s updated field; (d) if the response is still truncated to a file, do not re-run the query - extract just the key, summary, status and updated fields from the saved file instead.\n\n' +
             'WHEN TO USE: Use this tool when user requests a single day timesheet (e.g., "today\'s timesheet", "yesterday", "timesheet for Dec 1").\n' +
             'For multiple days: use generate_date_range_timesheet\n' +
             'For weekly timesheet: use generate_weekly_timesheet\n' +
@@ -291,13 +297,15 @@ class TimesheetAssistantMCPServer {
           description:
             'ORCHESTRATION TOOL: Returns a detailed guide for building custom date range timesheets day-by-day. This tool DOES NOT fetch data - it provides instructions for the LLM to:\n' +
             '1. Create a TODO list for all working days in the date range\n' +
-            '2. Fetch data for each day using fetch_gitlab_activity, fetch_github_activity, and fetch_google_calendar_events tools\n' +
+            '2. Fetch data for each day using the available source tools: fetch_gitlab_activity, fetch_google_calendar_events, fetch_outlook_calendar_events, fetch_azure_devops_activity, plus Jira via the Atlassian MCP\n' +
             '3. Inform user before/after each fetch with specific counts (commits, MRs, events)\n' +
             '4. Build timesheet progressively, showing results after each day\n' +
             '5. Handle days with no activity by distributing work from adjacent days\n' +
             '6. Summarize each day to 255 characters\n' +
             '7. After preparing all timesheets, ask user: "Would you like to: 1. Fill and submit to PSI now, or 2. Just fill to PSI (submit later)?" Then use fill_and_submit_to_psi or fill_to_psi accordingly\n\n' +
-            'DEPENDENCY: This tool requires the Activity Collector MCP to be available. The LLM MUST verify that fetch_gitlab_activity, fetch_github_activity, and fetch_google_calendar_events tools are available. If NOT available, instruct the user to add the Activity Collector MCP to their configuration.\n\n' +
+            'DEPENDENCY: This tool requires the Activity Collector MCP to be available. The LLM MUST verify which of these tools are available: fetch_gitlab_activity, fetch_google_calendar_events, fetch_outlook_calendar_events, fetch_azure_devops_activity. If NONE are available, instruct the user to add the Activity Collector MCP to their configuration. Use check_authentication_status to see which sources are configured.\n\n' +
+            'JIRA: Jira activity does NOT come from the Activity Collector MCP. It comes from the Atlassian MCP, which the LLM calls directly. If Atlassian/Jira tools (e.g. searchJiraIssuesUsingJql, getJiraIssue) are available, use them to find issues touched in the period with JQL such as: project = <KEY> AND updated >= "YYYY-MM-DD" AND updated <= "YYYY-MM-DD" AND assignee = currentUser() ORDER BY updated DESC. If those tools are NOT available, tell the user they can add Jira support by installing the Atlassian MCP (claude mcp add --transport sse atlassian https://mcp.atlassian.com/v1/sse) and continue without Jira data.\n\n' +
+            'JIRA RESPONSE SIZE - IMPORTANT: Jira search responses are very large (roughly 10-15KB per issue) and can exceed the tool output limit, which loses the whole result. To avoid this: (a) always pass a minimal fields list such as ["summary","status","updated"]; (b) always constrain the JQL by project AND assignee = currentUser(); (c) prefer ONE query covering the whole date range over per-day queries, then map issues to dates using each issue\'s updated field; (d) if the response is still truncated to a file, do not re-run the query - extract just the key, summary, status and updated fields from the saved file instead.\n\n' +
             'WHEN TO USE: Use this tool when user requests a custom date range (e.g., "last 3 days", "Dec 1-5", "timesheet from Nov 25 to Dec 2").\n' +
             'For single day: use generate_daily_timesheet\n' +
             'For standard week: use generate_weekly_timesheet\n' +
@@ -463,7 +471,7 @@ Wait for user response before proceeding.
 **STEP 3: CREATE TODO LIST** ✅ MANDATORY
 Based on user choice, create TODO list:
 - If user chose "day-by-day": Create one task per day: "Fetch and process timesheet for YYYY-MM-DD (DayName)"
-- If user chose "all at once": Create bulk tasks: "Fetch all calendar events", "Fetch all GitLab activity", "Fetch all GitHub activity", "Build all timesheets"
+- If user chose "all at once": Create bulk tasks: "Fetch all calendar events", "Fetch all GitLab activity", "Fetch all Azure DevOps activity", "Fetch all Jira activity", "Build all timesheets"
 
 **STEP 4A: IF USER CHOSE "DAY-BY-DAY"** ⚠️ Process one day at a time
 
@@ -476,12 +484,14 @@ For EACH working day (starting from day 1), follow this EXACT sequence:
 
    c) **Fetch data SEQUENTIALLY** (one at a time, NOT in parallel):
       - First: fetch_google_calendar_events (if Google Calendar configured)
+      - Then: fetch_outlook_calendar_events (if available - reads local Outlook desktop, needs no setup)
       - Then: fetch_gitlab_activity (if GitLab configured)
-      - Then: fetch_github_activity (if GitHub configured)
+      - Then: fetch_azure_devops_activity (if Azure DevOps configured)
+      - Then: Jira via the Atlassian MCP (see the JIRA note in this tool's description)
       ${forceRefresh ? 'Use force_refresh: true for each call' : ''}
 
    d) **Inform user AFTER each fetch** with actual counts:
-      "✅ [DATE]: Calendar: X events, GitLab: Y commits + Z MRs, GitHub: A commits + B PRs"
+      "✅ [DATE]: Calendar: X events, GitLab: Y commits + Z MRs, Azure DevOps: A work items + B PRs + C commits, Jira: D issues"
 
    e) **CHECK FOR ACTIVITY**:
       - IF day has Git activity (commits/MRs/PRs): GO TO STEP f
@@ -498,12 +508,14 @@ For EACH working day (starting from day 1), follow this EXACT sequence:
 **STEP 4B: IF USER CHOSE "ALL AT ONCE"** ⚠️ Fetch all data with date ranges
 
    a) **Fetch using DATE RANGES** (CRITICAL - USE start_date AND end_date):
-      - Make ONLY 3 tool calls total in ONE message (one per service)
+      - Make ONE tool call per CONFIGURED service, all in ONE message (not one call per day)
       - Call each service with start_date and end_date parameters:
         * fetch_google_calendar_events(start_date="YYYY-MM-DD", end_date="YYYY-MM-DD")
         * fetch_gitlab_activity(start_date="YYYY-MM-DD", end_date="YYYY-MM-DD")
-        * fetch_github_activity(start_date="YYYY-MM-DD", end_date="YYYY-MM-DD")
-      - Example: If working days are Dec 1-5, make 3 calls with start_date="2025-12-01", end_date="2025-12-05"
+        * fetch_outlook_calendar_events(start_date="YYYY-MM-DD", end_date="YYYY-MM-DD")
+        * fetch_azure_devops_activity(start_date="YYYY-MM-DD", end_date="YYYY-MM-DD")
+        * Jira: one JQL search via the Atlassian MCP covering the whole range
+      - Example: If working days are Dec 1-5, call each configured service ONCE with start_date="2025-12-01", end_date="2025-12-05"
       - DO NOT make individual calls for each date - use the date range parameters
       ${forceRefresh ? '- Use force_refresh: true for each call' : ''}
 
@@ -550,7 +562,7 @@ After presenting the table, tell user:
 ✓ ASK about leave days FIRST, then user preference (day-by-day or all at once)
 ✓ Check auth status - only use configured services
 ✓ Day-by-day mode: Process sequentially, show each day as completed
-✓ All at once mode: Use date range parameters (start_date, end_date) to make only 3 calls total
+✓ All at once mode: Use date range parameters (start_date, end_date) - one call per configured service, not per day
 ✓ Present final results in markdown TABLE format (Date | Day | Summary)
 ✓ **INCLUDE ALL WORKING DAYS** in final table (excluding leave days)
 ✓ For days with NO Git activity: distribute/infer work from adjacent days
@@ -647,7 +659,7 @@ Wait for user response before proceeding.
 **STEP 3: CREATE TODO LIST** ✅ MANDATORY
 Based on user choice, create TODO list:
 - If user chose "day-by-day": Create one task per day: "Fetch and process timesheet for YYYY-MM-DD (DayName)"
-- If user chose "all at once": Create bulk tasks: "Fetch all calendar events", "Fetch all GitLab activity", "Fetch all GitHub activity", "Build all timesheets"
+- If user chose "all at once": Create bulk tasks: "Fetch all calendar events", "Fetch all GitLab activity", "Fetch all Azure DevOps activity", "Fetch all Jira activity", "Build all timesheets"
 
 **STEP 4A: IF USER CHOSE "DAY-BY-DAY"** ⚠️ Process one day at a time
 
@@ -660,12 +672,14 @@ For EACH working day (starting from day 1), follow this EXACT sequence:
 
    c) **Fetch data SEQUENTIALLY** (one at a time, NOT in parallel):
       - First: fetch_google_calendar_events (if Google Calendar configured)
+      - Then: fetch_outlook_calendar_events (if available - reads local Outlook desktop, needs no setup)
       - Then: fetch_gitlab_activity (if GitLab configured)
-      - Then: fetch_github_activity (if GitHub configured)
+      - Then: fetch_azure_devops_activity (if Azure DevOps configured)
+      - Then: Jira via the Atlassian MCP (see the JIRA note in this tool's description)
       ${forceRefresh ? 'Use force_refresh: true for each call' : ''}
 
    d) **Inform user AFTER each fetch** with actual counts:
-      "✅ [DATE]: Calendar: X events, GitLab: Y commits + Z MRs, GitHub: A commits + B PRs"
+      "✅ [DATE]: Calendar: X events, GitLab: Y commits + Z MRs, Azure DevOps: A work items + B PRs + C commits, Jira: D issues"
 
    e) **CHECK FOR ACTIVITY**:
       - IF day has Git activity (commits/MRs/PRs): GO TO STEP f
@@ -682,12 +696,14 @@ For EACH working day (starting from day 1), follow this EXACT sequence:
 **STEP 4B: IF USER CHOSE "ALL AT ONCE"** ⚠️ Fetch all data with date ranges
 
    a) **Fetch using DATE RANGES** (CRITICAL - USE start_date AND end_date):
-      - Make ONLY 3 tool calls total in ONE message (one per service)
+      - Make ONE tool call per CONFIGURED service, all in ONE message (not one call per day)
       - Call each service with start_date and end_date parameters:
         * fetch_google_calendar_events(start_date="YYYY-MM-DD", end_date="YYYY-MM-DD")
         * fetch_gitlab_activity(start_date="YYYY-MM-DD", end_date="YYYY-MM-DD")
-        * fetch_github_activity(start_date="YYYY-MM-DD", end_date="YYYY-MM-DD")
-      - Example: If working days are Dec 1-5, make 3 calls with start_date="2025-12-01", end_date="2025-12-05"
+        * fetch_outlook_calendar_events(start_date="YYYY-MM-DD", end_date="YYYY-MM-DD")
+        * fetch_azure_devops_activity(start_date="YYYY-MM-DD", end_date="YYYY-MM-DD")
+        * Jira: one JQL search via the Atlassian MCP covering the whole range
+      - Example: If working days are Dec 1-5, call each configured service ONCE with start_date="2025-12-01", end_date="2025-12-05"
       - DO NOT make individual calls for each date - use the date range parameters
       ${forceRefresh ? '- Use force_refresh: true for each call' : ''}
 
@@ -734,7 +750,7 @@ After presenting the table, tell user:
 ✓ ASK about leave days FIRST, then user preference (day-by-day or all at once)
 ✓ Check auth status - only use configured services
 ✓ Day-by-day mode: Process sequentially, show each day as completed
-✓ All at once mode: Use date range parameters (start_date, end_date) to make only 3 calls total
+✓ All at once mode: Use date range parameters (start_date, end_date) - one call per configured service, not per day
 ✓ Present final results in markdown TABLE format (Date | Day | Summary)
 ✓ **INCLUDE ALL WORKING DAYS** in final table (excluding leave days)
 ✓ For days with NO Git activity: distribute/infer work from adjacent days
@@ -807,7 +823,9 @@ Tell the user: "🔄 Fetching data for ${formattedDate} (${dayOfWeek})..."
 Fetch data SEQUENTIALLY (one at a time, NOT in parallel):
    a) First: fetch_google_calendar_events with date "${dateStr}" (if Google Calendar configured)
    b) Then: fetch_gitlab_activity with date "${dateStr}" (if GitLab configured)
-   c) Then: fetch_github_activity with date "${dateStr}" (if GitHub configured)
+   c) Then: fetch_outlook_calendar_events with date "${dateStr}" (if available)
+   d) Then: fetch_azure_devops_activity with date "${dateStr}" (if Azure DevOps configured)
+   e) Then: Jira issues for "${dateStr}" via the Atlassian MCP (see the JIRA note above)
 
 After EACH fetch, inform user what was found (e.g., "Found 3 commits, 1 MR").
 
@@ -833,7 +851,7 @@ Present in this exact format:
 
 ⚠️ **CRITICAL RULES:**
 ✓ Check auth status FIRST - only use configured services
-✓ Fetch tools SEQUENTIALLY (calendar first, then GitLab, then GitHub)
+✓ Fetch tools SEQUENTIALLY (calendars first, then GitLab, then Azure DevOps, then Jira)
 ✓ Inform user after each fetch
 ✓ Keep final description ≤ 255 characters
 ✓ Include meaningful information (meeting names, story numbers, actions)
@@ -931,7 +949,7 @@ Wait for user response before proceeding.
 **STEP 3: CREATE TODO LIST** ✅ MANDATORY
 Based on user choice, create TODO list:
 - If user chose "day-by-day": Create one task per day: "Fetch and process timesheet for YYYY-MM-DD (DayName)"
-- If user chose "all at once": Create bulk tasks: "Fetch all calendar events", "Fetch all GitLab activity", "Fetch all GitHub activity", "Build all timesheets"
+- If user chose "all at once": Create bulk tasks: "Fetch all calendar events", "Fetch all GitLab activity", "Fetch all Azure DevOps activity", "Fetch all Jira activity", "Build all timesheets"
 
 **STEP 4A: IF USER CHOSE "DAY-BY-DAY"** ⚠️ Process one day at a time
 
@@ -944,12 +962,14 @@ For EACH working day (starting from day 1), follow this EXACT sequence:
 
    c) **Fetch data SEQUENTIALLY** (one at a time, NOT in parallel):
       - First: fetch_google_calendar_events (if Google Calendar configured)
+      - Then: fetch_outlook_calendar_events (if available - reads local Outlook desktop, needs no setup)
       - Then: fetch_gitlab_activity (if GitLab configured)
-      - Then: fetch_github_activity (if GitHub configured)
+      - Then: fetch_azure_devops_activity (if Azure DevOps configured)
+      - Then: Jira via the Atlassian MCP (see the JIRA note in this tool's description)
       ${forceRefresh ? 'Use force_refresh: true for each call' : ''}
 
    d) **Inform user AFTER each fetch** with actual counts:
-      "✅ [DATE]: Calendar: X events, GitLab: Y commits + Z MRs, GitHub: A commits + B PRs"
+      "✅ [DATE]: Calendar: X events, GitLab: Y commits + Z MRs, Azure DevOps: A work items + B PRs + C commits, Jira: D issues"
 
    e) **CHECK FOR ACTIVITY**:
       - IF day has Git activity (commits/MRs/PRs): GO TO STEP f
@@ -970,9 +990,11 @@ For EACH working day (starting from day 1), follow this EXACT sequence:
       - Call each configured service with start_date="${dateRange.split(' to ')[0]}" and end_date="${dateRange.split(' to ')[1]}":
         * fetch_google_calendar_events(start_date="${dateRange.split(' to ')[0]}", end_date="${dateRange.split(' to ')[1]}")${forceRefresh ? ', force_refresh: true' : ''}
         * fetch_gitlab_activity(start_date="${dateRange.split(' to ')[0]}", end_date="${dateRange.split(' to ')[1]}")${forceRefresh ? ', force_refresh: true' : ''}
-        * fetch_github_activity(start_date="${dateRange.split(' to ')[0]}", end_date="${dateRange.split(' to ')[1]}")${forceRefresh ? ', force_refresh: true' : ''}
+        * fetch_outlook_calendar_events(start_date="${dateRange.split(' to ')[0]}", end_date="${dateRange.split(' to ')[1]}")${forceRefresh ? ', force_refresh: true' : ''}
+        * fetch_azure_devops_activity(start_date="${dateRange.split(' to ')[0]}", end_date="${dateRange.split(' to ')[1]}")${forceRefresh ? ', force_refresh: true' : ''}
+        * Jira: one JQL search via the Atlassian MCP covering ${dateRange}
       - Make all calls in a SINGLE message (parallel execution)
-      - Example: For 5 working days, make only 3 calls total (NOT 15)
+      - Example: For 5 working days with 3 configured services, make 3 calls total (NOT 15)
       - DO NOT make individual calls for each date - always use start_date and end_date parameters
 
    b) **Wait for ALL responses**:
@@ -1018,7 +1040,7 @@ After presenting the table, tell user:
 ✓ ASK about leave days FIRST, then user preference (day-by-day or all at once)
 ✓ Check auth status - only use configured services
 ✓ Day-by-day mode: Process sequentially, show each day as completed
-✓ All at once mode: Use date range parameters (start_date, end_date) to make only 3 calls total
+✓ All at once mode: Use date range parameters (start_date, end_date) - one call per configured service, not per day
 ✓ Present final results in markdown TABLE format (Date | Day | Summary)
 ✓ **INCLUDE ALL WORKING DAYS** in final table (excluding leave days)
 ✓ For days with NO Git activity: distribute/infer work from adjacent days
